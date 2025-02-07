@@ -1,6 +1,4 @@
 node {
-    def mvnHome = tool name: 'Maven', type: 'maven'
-
     stage('Checkout') {
         checkout scm
     }
@@ -8,7 +6,7 @@ node {
     stage('Build') {
         docker.image('maven:3.9.2').inside('--user root -v $HOME/.m2:/root/.m2') {
             withEnv(["HOME=/root"]) {
-                sh "${mvnHome}/bin/mvn -B -DskipTests clean package"
+                sh 'mvn -B -DskipTests clean package'
             }
         }
     }
@@ -16,7 +14,7 @@ node {
     stage('Test') {
         docker.image('maven:3.9.2').inside('--user root -v $HOME/.m2:/root/.m2') {
             withEnv(["HOME=/root"]) {
-                sh "${mvnHome}/bin/mvn test"
+                sh 'mvn test'
             }
         }
         post {
