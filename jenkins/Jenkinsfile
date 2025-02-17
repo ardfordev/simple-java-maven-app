@@ -45,17 +45,12 @@ node {
                 """
             }
 
-            // Membuat file .env untuk docker-compose
-            sh """
-                echo "IMAGE_TAG=${env.BUILD_NUMBER}" > .env
-                scp -o StrictHostKeyChecking=no .env ec2-user@${ec2IP}:/home/ec2-user/
-            """
-
             sshagent(['ec2-maven-app']) {
                 withCredentials([usernamePassword(credentialsId: 'docker', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                     sh """
                         echo "Uploading deployment files..."
-                        scp -o StrictHostKeyChecking=no docker-compose.yml Dockerfile nginx.conf ec2-user@${ec2IP}:/home/ec2-user/
+                        scp -o StrictHostKeyChecking=no docker-compose.yml nginx.conf ec2-user@${ec2IP}:/home/ec2-user/
+                        scp -o StrictHostKeyChecking=no docker-compose.yml nginx.conf ec2-user@${ec2IP}:/home/ec2-user/
 
                         echo "Deploying to EC2..."
                         ssh -o StrictHostKeyChecking=no ec2-user@${ec2IP} '
