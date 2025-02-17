@@ -7,6 +7,17 @@ services:
       - "80:80"
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - app_logs:/var/log
+
+volumes:
+  app_logs:
 
 networks:
   app-network:
