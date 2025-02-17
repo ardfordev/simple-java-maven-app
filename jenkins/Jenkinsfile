@@ -1,37 +1,96 @@
 node {
-    stage('Checkout') {
-        checkout scm
-    }
+    def ec2IP = '54.179.166.149'
+    def imageTag = "${env.BUILD_NUMBER}"
+    def imageName = "ardfordev/maven-app:${imageTag}"
 
-    stage('Build') {
-        docker.image('maven:3.9.2').inside('--user root -v $HOME/.m2:/root/.m2') {
-            withEnv(["HOME=/root"]) {
-                sh 'mvn -B -DskipTests clean package'
-            }
-        }
-    }
-
-    stage('Test') {
-        try {
-            docker.image('maven:3.9.2').inside('--user root -v $HOME/.m2:/root/.m2') {
+    try {
+        stage('Build') {
+            checkout scm
+            docker.image('maven:3.9.2-eclipse-temurin-17').inside('--user root -v $HOME/.m2:/root/.m2') {
                 withEnv(["HOME=/root"]) {
-                    sh 'mvn test'
+                    sh 'mvn -B -DskipTests clean package'
                 }
             }
-        } catch (Exception e) {
-            echo "Tests failed, but continuing pipeline..."
-        } finally {
-            // Mengarsipkan laporan test meskipun ada kegagalan
-            archiveArtifacts artifacts: 'target/surefire-reports/*.xml', fingerprint: true
-            junit 'target/surefire-reports/*.xml'
         }
-    }
 
-    stage('Deliver') {
-        docker.image('maven:3.9.2').inside('--user root -v $HOME/.m2:/root/.m2') {
-            withEnv(["HOME=/root"]) {
-                sh './jenkins/scripts/deliver.sh'
+        stage('Test') {
+            try {
+                docker.image('maven:3.9.2-eclipse-temurin-17').inside('--user root -v $HOME/.m2:/root/.m2') {
+                    withEnv(["HOME=/root"]) {
+                        sh 'mvn test'
+                    }
+                }
+            } catch (Exception e) {
+                echo "Tests failed, but continuing pipeline..."
+            } finally {
+                archiveArtifacts artifacts: 'target/surefire-reports/*.xml', fingerprint: true
+                junit 'target/surefire-reports/*.xml'
             }
         }
+
+        stage('Manual Approval') {
+            input message: 'Lanjutkan ke tahap Deploy?', ok: 'Proceed'
+        }
+
+        stage('Deploy') {
+            // Build Docker image
+            sh "docker build -t ${imageName} ."
+
+            // Push Docker image to DockerHub
+            withCredentials([usernamePassword(credentialsId: 'docker', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                sh """
+                    echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+                    docker push ${imageName}
+                    docker logout
+                """
+            }
+
+            // Membuat file .env untuk docker-compose
+            sh """
+                echo "IMAGE_TAG=${env.BUILD_NUMBER}" > .env
+                scp -o StrictHostKeyChecking=no .env ec2-user@${ec2IP}:/home/ec2-user/
+            """
+
+            sshagent(['ec2-maven-app']) {
+                withCredentials([usernamePassword(credentialsId: 'docker', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh """
+                        echo "Uploading deployment files..."
+                        scp -o StrictHostKeyChecking=no docker-compose.yml Dockerfile nginx.conf ec2-user@${ec2IP}:/home/ec2-user/
+
+                        echo "Deploying to EC2..."
+                        ssh -o StrictHostKeyChecking=no ec2-user@${ec2IP} '
+                            cd /home/ec2-user
+                            
+                            echo "Logging into DockerHub..."
+                            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+                            
+                            echo "Pulling latest Docker images..."
+                            docker-compose pull
+                            
+                            echo "Restarting services..."
+                            docker-compose down
+                            docker-compose up -d --remove-orphans
+                            
+                            echo "Cleaning up unused Docker resources..."
+                            docker system prune -f
+                            
+                            echo "Logout from Docker registry"
+                            docker logout
+                        '
+                    """
+                }
+            }
+
+            echo "Application is running... waiting for 1 minute to check stability."
+            sleep 60
+            echo "Deployment completed. Pipeline execution finished."
+        }
+
+    } catch (Exception e) {
+        currentBuild.result = "FAILURE"
+        throw e
+    } finally {
+        sh 'docker image prune -f'
+        echo "Build finished with status: ${currentBuild.result ?: 'SUCCESS'}"
     }
 }
