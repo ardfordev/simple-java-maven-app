@@ -2,29 +2,9 @@ services:
   app:
     image: ardfordev/maven-app:${IMAGE_TAG}
     container_name: maven-app
-    restart: always
-    ports:
-      - "8080:8080"
-    networks:
-      - app-network
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  nginx:
-    image: nginx:alpine
-    container_name: nginx-proxy
-    restart: always
+    restart: unless-stopped
     ports:
       - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      - app
     networks:
       - app-network
 
