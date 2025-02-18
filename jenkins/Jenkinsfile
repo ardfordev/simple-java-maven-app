@@ -26,7 +26,11 @@ node {
             junit 'target/surefire-reports/*.xml'
         }
 
-        stage('Deploy to EC2') {
+        stage('Manual Approval') {
+            input message: 'Lanjutkan ke tahap Deploy?', ok: 'Proceed'
+        }
+
+        stage('Deploy') {
             // Build Docker image
             sh "docker build -t ${imageName} ."
             // Push Docker image to Docker Hub
