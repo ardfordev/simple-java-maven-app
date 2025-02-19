@@ -16,7 +16,7 @@ public class AppTest {
         App app = new App();
         String message = app.getMessage();
         assertNotNull(message);
-        assertEquals("Hello World!\nSubmission Proyek Membangun CI/CD Pipeline dengan Jenkins\nardi_supriyadi", message);
+        assertEquals("Hello World!\nSubmission Proyek Membangun CI/CD Pipeline dengan Jenkins\nardi_supriyadi",
+                message);
     }
 }
-
