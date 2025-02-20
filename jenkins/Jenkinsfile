@@ -64,6 +64,10 @@ node {
                     '
                 """
             }
+
+            echo "Application is running... waiting for 1 minute to check stability"
+            sleep 60
+            echo "Deployment completed. Pipeline execution finished."
         }
 
     } catch (Exception e) {
